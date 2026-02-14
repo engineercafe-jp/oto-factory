@@ -71,43 +71,11 @@ ssh colab
 
 詳細は [`ssh-forwarding-guide.md`](./ssh-forwarding-guide.md) を参照のこと。
 
-## プロトタイプアプリケーション
-
-### 作業音リアルタイム生成プロトタイプ
-
-ACE-Step 1.5 を使用して、作業音を途切れなく連続再生する最小プロトタイプを実装した。
-
-**特徴:**
-- 20〜60秒のセグメントを先読み生成
-- キューイングによる連続再生
-- マルチスレッド対応（生成と再生を並行実行）
-
-**実行方法:**
-
-```bash
-# 1. ACE-Step API サーバーを起動（別ターミナル）
-cd /content/oto-factory/ACE-Step-1.5
-uv run acestep-api --host 127.0.0.1 --port 8001
-
-# 2. プロトタイプを実行
-cd /content/oto-factory/prototype
-python app.py
-```
-
-詳細は [`prototype/README.md`](./prototype/README.md) を参照のこと。
-
 ## プロジェクト構成
 
 ```
 oto-factory/
 ├── ACE-Step-1.5/           # ACE-Step 1.5 サブモジュール
-├── prototype/              # 作業音リアルタイム生成プロトタイプ
-│   ├── README.md           # プロトタイプ説明書
-│   ├── app.py              # メインアプリケーション
-│   ├── config.py           # 設定ファイル
-│   ├── ace_client.py       # ACE-Step API クライアント
-│   ├── generator_loop.py   # 先読み生成ロジック
-│   └── player.py           # 音声再生制御
 ├── README.md               # 本ファイル
 ├── CLAUDE.md               # Claude Code 向けガイド
 ├── AGENTS.md               # エージェント向けガイドライン
@@ -127,7 +95,6 @@ oto-factory/
 - **[ssh-forwarding-guide.md](./ssh-forwarding-guide.md)**: すべてのアクセス方法の比較
 
 ### アプリケーション
-- **[prototype/README.md](./prototype/README.md)**: 作業音リアルタイム生成プロトタイプ
 - **[design_codex.md](./design_codex.md)**: プロトタイプ設計書
 
 ### 開発ガイド
