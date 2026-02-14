@@ -276,6 +276,21 @@
         .btn-download:hover {
             background: #4b5563;
         }
+
+        input[type="range"] {
+            cursor: pointer;
+        }
+
+        input[type="checkbox"] {
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+        }
+
+        label {
+            cursor: pointer;
+            user-select: none;
+        }
     </style>
 </head>
 <body>
@@ -327,6 +342,21 @@
                     <source id="audioSource" src="" type="audio/mpeg">
                     お使いのブラウザはオーディオ再生に対応していません。
                 </audio>
+                <div style="display: flex; gap: 12px; margin-bottom: 16px; align-items: center;">
+                    <button id="playAllBtn" class="btn btn-start" onclick="toggleAutoPlay()" style="margin: 0;">
+                        🔁 連続再生
+                    </button>
+                    <label style="display: flex; align-items: center; gap: 8px; color: #666; font-size: 14px;">
+                        <input type="checkbox" id="crossfadeEnabled" checked onchange="updateCrossfadeSettings()">
+                        クロスフェード有効
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; color: #666; font-size: 14px;">
+                        フェード時間:
+                        <input type="range" id="fadeDuration" min="0.5" max="5" step="0.5" value="2"
+                               style="width: 100px;" onchange="updateCrossfadeSettings()">
+                        <span id="fadeDurationValue">2.0</span>秒
+                    </label>
+                </div>
                 <div id="currentlyPlaying" style="margin-bottom: 16px; color: #666; font-size: 14px;">
                     再生するセグメントを選択してください
                 </div>
@@ -347,6 +377,19 @@
     <script>
         let updateInterval;
         let currentPlayingSegment = null;
+        let autoPlayEnabled = false;
+        let crossfadeEnabled = true;
+        let fadeDuration = 2.0;
+        let segmentsList = [];
+        let currentSegmentIndex = -1;
+
+        // Web Audio API
+        let audioContext = null;
+        let currentSource = null;
+        let nextSource = null;
+        let currentGainNode = null;
+        let nextGainNode = null;
+        let isTransitioning = false;
 
         function formatFileSize(bytes) {
             if (bytes < 1024) return bytes + ' B';
@@ -354,20 +397,207 @@
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         }
 
-        function playSegment(filename) {
-            const audioPlayer = document.getElementById('audioPlayer');
-            const audioSource = document.getElementById('audioSource');
-            const currentlyPlaying = document.getElementById('currentlyPlaying');
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
 
-            audioSource.src = `/api/download/${filename}`;
-            audioPlayer.load();
-            audioPlayer.play();
+        function updateCrossfadeSettings() {
+            crossfadeEnabled = document.getElementById('crossfadeEnabled').checked;
+            fadeDuration = parseFloat(document.getElementById('fadeDuration').value);
+            document.getElementById('fadeDurationValue').textContent = fadeDuration.toFixed(1);
+        }
+
+        function toggleAutoPlay() {
+            autoPlayEnabled = !autoPlayEnabled;
+            const btn = document.getElementById('playAllBtn');
+
+            if (autoPlayEnabled) {
+                btn.textContent = '⏸ 停止';
+                btn.className = 'btn btn-stop';
+                if (currentSegmentIndex === -1 && segmentsList.length > 0) {
+                    // Start from first segment
+                    currentSegmentIndex = 0;
+                    playSegmentWithFade(segmentsList[0].name);
+                }
+            } else {
+                btn.textContent = '🔁 連続再生';
+                btn.className = 'btn btn-start';
+                // Stop current playback
+                if (currentSource) {
+                    currentSource.stop();
+                    currentSource = null;
+                }
+            }
+        }
+
+        async function loadAudioBuffer(url) {
+            try {
+                const response = await fetch(url);
+                const arrayBuffer = await response.arrayBuffer();
+                return await audioContext.decodeAudioData(arrayBuffer);
+            } catch (error) {
+                console.error('Error loading audio:', error);
+                return null;
+            }
+        }
+
+        async function playSegmentWithFade(filename) {
+            initAudioContext();
+
+            const url = `/api/download/${filename}`;
+            const buffer = await loadAudioBuffer(url);
+
+            if (!buffer) {
+                console.error('Failed to load audio buffer');
+                return;
+            }
 
             currentPlayingSegment = filename;
-            currentlyPlaying.textContent = `再生中: ${filename}`;
-
-            // Update UI to show playing state
+            document.getElementById('currentlyPlaying').textContent = `再生中: ${filename}`;
             updateSegmentPlayingState();
+
+            // Stop previous source if exists
+            if (currentSource && !isTransitioning) {
+                currentSource.stop();
+            }
+
+            // Create new source
+            const source = audioContext.createBufferSource();
+            source.buffer = buffer;
+
+            const gainNode = audioContext.createGain();
+            source.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            // Fade in
+            if (crossfadeEnabled && !isTransitioning) {
+                gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+                gainNode.gain.linearRampToValueAtTime(1, audioContext.currentTime + fadeDuration);
+            } else {
+                gainNode.gain.setValueAtTime(1, audioContext.currentTime);
+            }
+
+            currentSource = source;
+            currentGainNode = gainNode;
+
+            // Handle track end
+            source.onended = () => {
+                if (autoPlayEnabled && !isTransitioning) {
+                    playNextSegment();
+                }
+            };
+
+            // Schedule crossfade before track ends
+            if (crossfadeEnabled && autoPlayEnabled) {
+                const fadeStartTime = buffer.duration - fadeDuration;
+                if (fadeStartTime > 0) {
+                    setTimeout(() => {
+                        if (autoPlayEnabled && currentSource === source) {
+                            startCrossfade();
+                        }
+                    }, fadeStartTime * 1000);
+                }
+            }
+
+            source.start(0);
+        }
+
+        async function startCrossfade() {
+            if (isTransitioning) return;
+
+            const nextIndex = (currentSegmentIndex + 1) % segmentsList.length;
+            if (nextIndex === currentSegmentIndex) return;
+
+            isTransitioning = true;
+
+            const nextFilename = segmentsList[nextIndex].name;
+            const url = `/api/download/${nextFilename}`;
+            const buffer = await loadAudioBuffer(url);
+
+            if (!buffer) {
+                isTransitioning = false;
+                return;
+            }
+
+            // Create next source
+            const nextSource = audioContext.createBufferSource();
+            nextSource.buffer = buffer;
+
+            const nextGainNode = audioContext.createGain();
+            nextSource.connect(nextGainNode);
+            nextGainNode.connect(audioContext.destination);
+
+            // Fade out current
+            if (currentGainNode) {
+                currentGainNode.gain.setValueAtTime(1, audioContext.currentTime);
+                currentGainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + fadeDuration);
+            }
+
+            // Fade in next
+            nextGainNode.gain.setValueAtTime(0, audioContext.currentTime);
+            nextGainNode.gain.linearRampToValueAtTime(1, audioContext.currentTime + fadeDuration);
+
+            nextSource.start(0);
+
+            // Update references after fade
+            setTimeout(() => {
+                if (currentSource) {
+                    try {
+                        currentSource.stop();
+                    } catch (e) {
+                        // Already stopped
+                    }
+                }
+
+                currentSource = nextSource;
+                currentGainNode = nextGainNode;
+                currentSegmentIndex = nextIndex;
+                currentPlayingSegment = nextFilename;
+
+                document.getElementById('currentlyPlaying').textContent = `再生中: ${nextFilename}`;
+                updateSegmentPlayingState();
+
+                isTransitioning = false;
+
+                // Schedule next crossfade
+                if (crossfadeEnabled && autoPlayEnabled) {
+                    const fadeStartTime = buffer.duration - fadeDuration;
+                    if (fadeStartTime > 0) {
+                        setTimeout(() => {
+                            if (autoPlayEnabled && currentSource === nextSource) {
+                                startCrossfade();
+                            }
+                        }, fadeStartTime * 1000);
+                    }
+                }
+
+                // Handle track end (fallback)
+                nextSource.onended = () => {
+                    if (autoPlayEnabled && !isTransitioning) {
+                        playNextSegment();
+                    }
+                };
+            }, fadeDuration * 1000);
+        }
+
+        function playNextSegment() {
+            if (segmentsList.length === 0) return;
+
+            currentSegmentIndex = (currentSegmentIndex + 1) % segmentsList.length;
+            playSegmentWithFade(segmentsList[currentSegmentIndex].name);
+        }
+
+        function playSegment(filename) {
+            // Find segment index
+            const index = segmentsList.findIndex(s => s.name === filename);
+            if (index !== -1) {
+                currentSegmentIndex = index;
+            }
+
+            // Use Web Audio API for better control
+            playSegmentWithFade(filename);
         }
 
         function downloadSegment(filename) {
@@ -389,6 +619,9 @@
                 const response = await fetch('/api/segments');
                 const segments = await response.json();
 
+                // Update global segments list for auto-play
+                segmentsList = segments;
+
                 const segmentsDiv = document.getElementById('segments');
 
                 if (segments.length === 0) {
@@ -396,7 +629,8 @@
                     return;
                 }
 
-                segmentsDiv.innerHTML = segments.reverse().map(segment => `
+                // Display in reverse order (newest first)
+                segmentsDiv.innerHTML = segments.slice().reverse().map(segment => `
                     <div class="segment-item" data-filename="${segment.name}">
                         <div class="segment-info">
                             <div class="segment-name">${segment.name}</div>
