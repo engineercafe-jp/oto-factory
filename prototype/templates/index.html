@@ -407,26 +407,36 @@
             crossfadeEnabled = document.getElementById('crossfadeEnabled').checked;
             fadeDuration = parseFloat(document.getElementById('fadeDuration').value);
             document.getElementById('fadeDurationValue').textContent = fadeDuration.toFixed(1);
+            console.log('[Settings] Crossfade:', crossfadeEnabled ? 'ENABLED' : 'DISABLED', ', Duration:', fadeDuration, 'seconds');
         }
 
         function toggleAutoPlay() {
             autoPlayEnabled = !autoPlayEnabled;
             const btn = document.getElementById('playAllBtn');
 
+            console.log('[AutoPlay] Toggled auto-play:', autoPlayEnabled ? 'ENABLED' : 'DISABLED');
+
             if (autoPlayEnabled) {
                 btn.textContent = '⏸ 停止';
                 btn.className = 'btn btn-stop';
                 if (currentSegmentIndex === -1 && segmentsList.length > 0) {
-                    // Start from first segment
+                    console.log('[AutoPlay] Starting from first segment');
                     currentSegmentIndex = 0;
                     playSegmentWithFade(segmentsList[0].name);
+                } else {
+                    console.log('[AutoPlay] Continuing from current segment:', currentSegmentIndex);
                 }
             } else {
                 btn.textContent = '🔁 連続再生';
                 btn.className = 'btn btn-start';
-                // Stop current playback
+                console.log('[AutoPlay] Stopping playback');
                 if (currentSource) {
-                    currentSource.stop();
+                    try {
+                        currentSource.stop();
+                        console.log('[AutoPlay] Stopped current source');
+                    } catch (e) {
+                        console.log('[AutoPlay] Error stopping source:', e.message);
+                    }
                     currentSource = null;
                 }
             }
@@ -434,25 +444,36 @@
 
         async function loadAudioBuffer(url) {
             try {
+                console.log('[Audio] Loading audio from:', url);
                 const response = await fetch(url);
                 const arrayBuffer = await response.arrayBuffer();
-                return await audioContext.decodeAudioData(arrayBuffer);
+                console.log('[Audio] Downloaded audio size:', arrayBuffer.byteLength, 'bytes');
+
+                const buffer = await audioContext.decodeAudioData(arrayBuffer);
+                console.log('[Audio] Decoded audio duration:', buffer.duration.toFixed(2), 'seconds');
+                console.log('[Audio] Sample rate:', buffer.sampleRate, 'Hz');
+                console.log('[Audio] Channels:', buffer.numberOfChannels);
+
+                return buffer;
             } catch (error) {
-                console.error('Error loading audio:', error);
+                console.error('[Audio] Error loading audio:', error);
                 return null;
             }
         }
 
         async function playSegmentWithFade(filename) {
+            console.log('[Playback] Starting playback:', filename);
             initAudioContext();
 
             const url = `/api/download/${filename}`;
             const buffer = await loadAudioBuffer(url);
 
             if (!buffer) {
-                console.error('Failed to load audio buffer');
+                console.error('[Playback] Failed to load audio buffer');
                 return;
             }
+
+            console.log('[Playback] Audio loaded successfully, duration:', buffer.duration.toFixed(2), 'seconds');
 
             currentPlayingSegment = filename;
             document.getElementById('currentlyPlaying').textContent = `再生中: ${filename}`;
@@ -460,7 +481,12 @@
 
             // Stop previous source if exists
             if (currentSource && !isTransitioning) {
-                currentSource.stop();
+                console.log('[Playback] Stopping previous source');
+                try {
+                    currentSource.stop();
+                } catch (e) {
+                    console.log('[Playback] Previous source already stopped');
+                }
             }
 
             // Create new source
@@ -473,53 +499,90 @@
 
             // Fade in
             if (crossfadeEnabled && !isTransitioning) {
+                console.log('[Playback] Starting with fade-in:', fadeDuration, 'seconds');
                 gainNode.gain.setValueAtTime(0, audioContext.currentTime);
                 gainNode.gain.linearRampToValueAtTime(1, audioContext.currentTime + fadeDuration);
             } else {
+                console.log('[Playback] Starting at full volume (no fade-in)');
                 gainNode.gain.setValueAtTime(1, audioContext.currentTime);
             }
 
             currentSource = source;
             currentGainNode = gainNode;
 
+            // Store start time for debugging
+            const startTime = audioContext.currentTime;
+
             // Handle track end
             source.onended = () => {
+                const playedDuration = audioContext.currentTime - startTime;
+                console.log('[Playback] Track ended:', filename);
+                console.log('[Playback] Played duration:', playedDuration.toFixed(2), 'seconds');
+                console.log('[Playback] Expected duration:', buffer.duration.toFixed(2), 'seconds');
+
                 if (autoPlayEnabled && !isTransitioning) {
+                    console.log('[Playback] Auto-play enabled, playing next segment');
                     playNextSegment();
                 }
             };
 
             // Schedule crossfade before track ends
             if (crossfadeEnabled && autoPlayEnabled) {
-                const fadeStartTime = buffer.duration - fadeDuration;
+                const fadeStartTime = (buffer.duration - fadeDuration) * 1000; // Convert to milliseconds
+                console.log('[Playback] Crossfade will start in:', (fadeStartTime / 1000).toFixed(2), 'seconds');
+                console.log('[Playback] Track duration:', buffer.duration.toFixed(2), 'seconds, Fade duration:', fadeDuration, 'seconds');
+
                 if (fadeStartTime > 0) {
                     setTimeout(() => {
+                        console.log('[Playback] Crossfade timeout triggered');
                         if (autoPlayEnabled && currentSource === source) {
+                            console.log('[Playback] Starting crossfade transition');
                             startCrossfade();
+                        } else {
+                            console.log('[Playback] Crossfade cancelled (source changed or auto-play disabled)');
                         }
-                    }, fadeStartTime * 1000);
+                    }, fadeStartTime);
+                } else {
+                    console.warn('[Playback] Fade start time is negative or zero, skipping crossfade');
                 }
+            } else {
+                console.log('[Playback] Crossfade disabled or auto-play off');
             }
 
+            console.log('[Playback] Starting playback now');
             source.start(0);
         }
 
         async function startCrossfade() {
-            if (isTransitioning) return;
+            console.log('[Crossfade] Starting crossfade');
+
+            if (isTransitioning) {
+                console.log('[Crossfade] Already transitioning, skipping');
+                return;
+            }
 
             const nextIndex = (currentSegmentIndex + 1) % segmentsList.length;
-            if (nextIndex === currentSegmentIndex) return;
+            if (nextIndex === currentSegmentIndex) {
+                console.log('[Crossfade] Only one segment available, skipping crossfade');
+                return;
+            }
 
             isTransitioning = true;
+            console.log('[Crossfade] Transition started, next index:', nextIndex);
 
             const nextFilename = segmentsList[nextIndex].name;
+            console.log('[Crossfade] Loading next segment:', nextFilename);
+
             const url = `/api/download/${nextFilename}`;
             const buffer = await loadAudioBuffer(url);
 
             if (!buffer) {
+                console.error('[Crossfade] Failed to load next segment');
                 isTransitioning = false;
                 return;
             }
+
+            console.log('[Crossfade] Next segment loaded, duration:', buffer.duration.toFixed(2), 'seconds');
 
             // Create next source
             const nextSource = audioContext.createBufferSource();
@@ -529,25 +592,35 @@
             nextSource.connect(nextGainNode);
             nextGainNode.connect(audioContext.destination);
 
+            const currentTime = audioContext.currentTime;
+            const fadeEndTime = currentTime + fadeDuration;
+
             // Fade out current
             if (currentGainNode) {
-                currentGainNode.gain.setValueAtTime(1, audioContext.currentTime);
-                currentGainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + fadeDuration);
+                console.log('[Crossfade] Fading out current track over', fadeDuration, 'seconds');
+                currentGainNode.gain.setValueAtTime(1, currentTime);
+                currentGainNode.gain.linearRampToValueAtTime(0, fadeEndTime);
             }
 
             // Fade in next
-            nextGainNode.gain.setValueAtTime(0, audioContext.currentTime);
-            nextGainNode.gain.linearRampToValueAtTime(1, audioContext.currentTime + fadeDuration);
+            console.log('[Crossfade] Fading in next track over', fadeDuration, 'seconds');
+            nextGainNode.gain.setValueAtTime(0, currentTime);
+            nextGainNode.gain.linearRampToValueAtTime(1, fadeEndTime);
 
+            console.log('[Crossfade] Starting next track playback');
+            const nextStartTime = audioContext.currentTime;
             nextSource.start(0);
 
             // Update references after fade
             setTimeout(() => {
+                console.log('[Crossfade] Fade completed, cleaning up');
+
                 if (currentSource) {
                     try {
                         currentSource.stop();
+                        console.log('[Crossfade] Stopped previous source');
                     } catch (e) {
-                        // Already stopped
+                        console.log('[Crossfade] Previous source already stopped:', e.message);
                     }
                 }
 
@@ -560,22 +633,34 @@
                 updateSegmentPlayingState();
 
                 isTransitioning = false;
+                console.log('[Crossfade] Transition complete, now playing:', nextFilename);
 
                 // Schedule next crossfade
                 if (crossfadeEnabled && autoPlayEnabled) {
-                    const fadeStartTime = buffer.duration - fadeDuration;
+                    const fadeStartTime = (buffer.duration - fadeDuration) * 1000;
+                    console.log('[Crossfade] Scheduling next crossfade in', (fadeStartTime / 1000).toFixed(2), 'seconds');
+
                     if (fadeStartTime > 0) {
                         setTimeout(() => {
+                            console.log('[Crossfade] Next crossfade timeout triggered');
                             if (autoPlayEnabled && currentSource === nextSource) {
                                 startCrossfade();
+                            } else {
+                                console.log('[Crossfade] Next crossfade cancelled');
                             }
-                        }, fadeStartTime * 1000);
+                        }, fadeStartTime);
+                    } else {
+                        console.warn('[Crossfade] Negative fade start time, skipping next crossfade schedule');
                     }
                 }
 
                 // Handle track end (fallback)
                 nextSource.onended = () => {
+                    const playedDuration = audioContext.currentTime - nextStartTime;
+                    console.log('[Crossfade] Next track ended, played duration:', playedDuration.toFixed(2), 'seconds');
+
                     if (autoPlayEnabled && !isTransitioning) {
+                        console.log('[Crossfade] Fallback: playing next segment');
                         playNextSegment();
                     }
                 };
@@ -583,9 +668,15 @@
         }
 
         function playNextSegment() {
-            if (segmentsList.length === 0) return;
+            console.log('[Queue] Playing next segment');
+
+            if (segmentsList.length === 0) {
+                console.log('[Queue] No segments available');
+                return;
+            }
 
             currentSegmentIndex = (currentSegmentIndex + 1) % segmentsList.length;
+            console.log('[Queue] Next segment index:', currentSegmentIndex, '/', segmentsList.length);
             playSegmentWithFade(segmentsList[currentSegmentIndex].name);
         }
 
