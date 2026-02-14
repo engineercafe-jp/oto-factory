@@ -206,6 +206,76 @@
             color: #666;
             padding: 20px;
         }
+
+        .segments-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .segment-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+            transition: background 0.2s;
+        }
+
+        .segment-item:hover {
+            background: #f9fafb;
+        }
+
+        .segment-item.playing {
+            background: #eff6ff;
+            border-left: 3px solid #667eea;
+        }
+
+        .segment-info {
+            flex: 1;
+        }
+
+        .segment-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .segment-meta {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .segment-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-play {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-play:hover {
+            background: #5568d3;
+        }
+
+        .btn-download {
+            background: #6b7280;
+            color: white;
+        }
+
+        .btn-download:hover {
+            background: #4b5563;
+        }
     </style>
 </head>
 <body>
@@ -251,6 +321,22 @@
         </div>
 
         <div class="panel">
+            <div class="panel-title">🎵 生成された音楽</div>
+            <div id="player-section">
+                <audio id="audioPlayer" controls style="width: 100%; margin-bottom: 16px;">
+                    <source id="audioSource" src="" type="audio/mpeg">
+                    お使いのブラウザはオーディオ再生に対応していません。
+                </audio>
+                <div id="currentlyPlaying" style="margin-bottom: 16px; color: #666; font-size: 14px;">
+                    再生するセグメントを選択してください
+                </div>
+            </div>
+            <div id="segments" class="segments-list">
+                <div class="loading">セグメントを読み込み中...</div>
+            </div>
+        </div>
+
+        <div class="panel">
             <div class="panel-title">📝 ログ</div>
             <div id="logs" class="logs">
                 <div class="loading">ログを読み込み中...</div>
@@ -260,6 +346,74 @@
 
     <script>
         let updateInterval;
+        let currentPlayingSegment = null;
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function playSegment(filename) {
+            const audioPlayer = document.getElementById('audioPlayer');
+            const audioSource = document.getElementById('audioSource');
+            const currentlyPlaying = document.getElementById('currentlyPlaying');
+
+            audioSource.src = `/api/download/${filename}`;
+            audioPlayer.load();
+            audioPlayer.play();
+
+            currentPlayingSegment = filename;
+            currentlyPlaying.textContent = `再生中: ${filename}`;
+
+            // Update UI to show playing state
+            updateSegmentPlayingState();
+        }
+
+        function downloadSegment(filename) {
+            window.open(`/api/download/${filename}`, '_blank');
+        }
+
+        function updateSegmentPlayingState() {
+            document.querySelectorAll('.segment-item').forEach(item => {
+                if (item.dataset.filename === currentPlayingSegment) {
+                    item.classList.add('playing');
+                } else {
+                    item.classList.remove('playing');
+                }
+            });
+        }
+
+        async function updateSegments() {
+            try {
+                const response = await fetch('/api/segments');
+                const segments = await response.json();
+
+                const segmentsDiv = document.getElementById('segments');
+
+                if (segments.length === 0) {
+                    segmentsDiv.innerHTML = '<div class="loading">セグメントがまだ生成されていません</div>';
+                    return;
+                }
+
+                segmentsDiv.innerHTML = segments.reverse().map(segment => `
+                    <div class="segment-item" data-filename="${segment.name}">
+                        <div class="segment-info">
+                            <div class="segment-name">${segment.name}</div>
+                            <div class="segment-meta">${formatFileSize(segment.size)}</div>
+                        </div>
+                        <div class="segment-actions">
+                            <button class="btn-small btn-play" onclick="playSegment('${segment.name}')">▶ 再生</button>
+                            <button class="btn-small btn-download" onclick="downloadSegment('${segment.name}')">⬇ DL</button>
+                        </div>
+                    </div>
+                `).join('');
+
+                updateSegmentPlayingState();
+            } catch (error) {
+                console.error('Failed to update segments:', error);
+            }
+        }
 
         async function startGenerator() {
             try {
@@ -354,12 +508,14 @@
             updateInterval = setInterval(() => {
                 updateStatus();
                 updateLogs();
-            }, 1000);
+                updateSegments();
+            }, 2000);  // 2秒ごとに更新
         }
 
         // 初期化
         updateStatus();
         updateLogs();
+        updateSegments();
         startUpdates();
     </script>
 </body>
