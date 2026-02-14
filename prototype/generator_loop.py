@@ -92,6 +92,9 @@ class GeneratorLoop:
         """生成ループのメイン処理"""
         logger.info(f"先読み生成ループ開始: target={self.prefetch_target}, duration={self.segment_duration}s")
 
+        consecutive_failures = 0
+        max_consecutive_failures = 5
+
         while not self.stop_event.is_set():
             try:
                 # キューの残量をチェック
@@ -104,14 +107,39 @@ class GeneratorLoop:
                     continue
 
                 # 新しいセグメントを生成
-                self._generate_segment()
+                success = self._generate_segment()
+
+                if success:
+                    consecutive_failures = 0  # 成功したらリセット
+                else:
+                    consecutive_failures += 1
+                    # 連続失敗時はバックオフ
+                    backoff_time = min(2 ** consecutive_failures, 60)  # 最大60秒
+                    logger.warning(
+                        f"セグメント生成失敗（連続{consecutive_failures}回）。"
+                        f"{backoff_time}秒待機します"
+                    )
+                    time.sleep(backoff_time)
+
+                    # 連続失敗が多すぎる場合は警告
+                    if consecutive_failures >= max_consecutive_failures:
+                        logger.error(
+                            f"連続{consecutive_failures}回失敗しました。"
+                            "API サーバーの状態を確認してください"
+                        )
+                        time.sleep(10)  # 長めに待機
 
             except Exception as e:
                 logger.error(f"生成ループエラー: {e}", exc_info=True)
                 time.sleep(5)  # エラー時は少し待機
 
-    def _generate_segment(self):
-        """1つのセグメントを生成してキューに追加する"""
+    def _generate_segment(self) -> bool:
+        """
+        1つのセグメントを生成してキューに追加する
+
+        Returns:
+            success: 生成成功フラグ
+        """
         self.segment_counter += 1
         segment_id = self.segment_counter
 
@@ -126,7 +154,7 @@ class GeneratorLoop:
 
         if not task_id:
             logger.error(f"セグメント#{segment_id} タスク投入失敗")
-            return
+            return False  # 失敗を返す
 
         # 保存先ファイル名
         output_file = OUTPUT_DIR / f"segment_{segment_id:04d}.wav"
@@ -147,6 +175,8 @@ class GeneratorLoop:
             # キューに追加
             self.queue.put(output_file)
             logger.info(f"キューに追加: サイズ={self.queue.qsize()}")
+            return True  # 成功
 
         else:
             logger.error(f"セグメント#{segment_id} 生成失敗")
+            return False  # 失敗

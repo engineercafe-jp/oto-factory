@@ -6,6 +6,7 @@
 
 import requests
 import time
+import json
 import logging
 from typing import Dict, Any, Optional
 from pathlib import Path
@@ -72,7 +73,15 @@ class ACEStepClient:
             response.raise_for_status()
 
             result = response.json()
-            task_id = result.get("task_id")
+
+            # APIレスポンスの構造を確認
+            if isinstance(result, dict) and "data" in result:
+                # ラッパー形式の場合
+                data = result.get("data", {})
+                task_id = data.get("task_id")
+            else:
+                # 直接レスポンスの場合
+                task_id = result.get("task_id")
 
             if task_id:
                 logger.info(f"タスク受付成功: task_id={task_id}")
@@ -81,8 +90,13 @@ class ACEStepClient:
                 logger.error(f"タスクIDが取得できませんでした: {result}")
                 return None
 
+        except requests.HTTPError as e:
+            logger.error(
+                f"タスク投入失敗 (HTTP {e.response.status_code}): {e.response.text[:200]}"
+            )
+            return None
         except requests.RequestException as e:
-            logger.error(f"タスク投入失敗: {e}")
+            logger.error(f"タスク投入失敗 (ネットワークエラー): {e}")
             return None
 
     def query_result(
@@ -99,41 +113,83 @@ class ACEStepClient:
             result: タスク結果（status, audio_path など）
         """
         url = f"{self.base_url}/query_result"
-        payload = {"task_id": task_id}
+        # API は task_id_list（リスト形式）を期待している
+        payload = {"task_id_list": [task_id]}
 
         try:
             response = self.session.post(url, json=payload, timeout=10)
             response.raise_for_status()
 
             result = response.json()
-            status = result.get("status")
+
+            # APIレスポンスの構造を確認
+            # ラッパー形式: {"data": [{"task_id": "...", "result": "...", "status": 0|1|2}], ...}
+            if isinstance(result, dict) and "data" in result:
+                data_list = result.get("data", [])
+                if not data_list or len(data_list) == 0:
+                    logger.debug(f"タスク未登録: task_id={task_id}")
+                    return None
+
+                # 最初の要素を取得
+                item = data_list[0]
+                status = item.get("status")
+
+                # result フィールドは JSON 文字列の場合がある
+                result_data = item.get("result", "{}")
+                if isinstance(result_data, str):
+                    try:
+                        result_data = json.loads(result_data) if result_data else {}
+                    except json.JSONDecodeError:
+                        result_data = {}
+
+                # result_data がリストの場合は最初の要素を取得
+                if isinstance(result_data, list) and len(result_data) > 0:
+                    result_data = result_data[0]
+
+                data = result_data if isinstance(result_data, dict) else {}
+                data["status"] = status
+                data["task_id"] = task_id
+            else:
+                # 直接レスポンスの場合
+                status = result.get("status")
+                data = result
 
             if status == 1:  # 成功
                 logger.info(f"タスク完了: task_id={task_id}")
 
                 # 音声ファイルを保存
-                if save_to and "audio" in result:
-                    audio_data = result["audio"]
-                    if isinstance(audio_data, str):
-                        # Base64 エンコードされている場合
-                        import base64
-                        audio_bytes = base64.b64decode(audio_data)
-                        save_to.write_bytes(audio_bytes)
-                        logger.info(f"音声ファイル保存: {save_to}")
-                        result["audio_path"] = str(save_to)
+                # API は "file" フィールドに音声のパスを返す
+                audio_path = data.get("audio_path") or data.get("file")
+                if save_to and audio_path:
+                    # audio_path から音声をダウンロード
+                    audio_url = f"{self.base_url}{audio_path}"
 
-                return result
+                    logger.debug(f"音声ダウンロード: {audio_url}")
+                    audio_response = self.session.get(audio_url, timeout=30)
+                    audio_response.raise_for_status()
+
+                    save_to.write_bytes(audio_response.content)
+                    logger.info(f"音声ファイル保存: {save_to}")
+                    data["local_audio_path"] = str(save_to)
+
+                return data
 
             elif status == 2:  # 失敗
-                logger.error(f"タスク失敗: task_id={task_id}, error={result.get('error')}")
-                return result
+                error_msg = data.get("error", data.get("message", "Unknown error"))
+                logger.error(f"タスク失敗: task_id={task_id}, error={error_msg}")
+                return data
 
             else:  # 実行中または不明
                 logger.debug(f"タスク実行中: task_id={task_id}, status={status}")
-                return result
+                return data
 
+        except requests.HTTPError as e:
+            logger.error(
+                f"結果取得失敗 (HTTP {e.response.status_code}): task_id={task_id}, {e.response.text[:200]}"
+            )
+            return None
         except requests.RequestException as e:
-            logger.error(f"結果取得失敗: task_id={task_id}, error={e}")
+            logger.error(f"結果取得失敗 (ネットワークエラー): task_id={task_id}, error={e}")
             return None
 
     def wait_for_completion(
