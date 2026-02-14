@@ -391,6 +391,10 @@
         let nextGainNode = null;
         let isTransitioning = false;
 
+        // Preloading cache
+        let preloadedBuffers = new Map(); // filename -> AudioBuffer
+        let isPreloading = false;
+
         function formatFileSize(bytes) {
             if (bytes < 1024) return bytes + ' B';
             if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -439,20 +443,31 @@
                     }
                     currentSource = null;
                 }
+                // Clear preloaded cache
+                console.log('[AutoPlay] Clearing preload cache, size:', preloadedBuffers.size);
+                preloadedBuffers.clear();
             }
         }
 
         async function loadAudioBuffer(url) {
             try {
                 console.log('[Audio] Loading audio from:', url);
+                const startTime = performance.now();
+
                 const response = await fetch(url);
                 const arrayBuffer = await response.arrayBuffer();
+                const downloadTime = performance.now() - startTime;
+
                 console.log('[Audio] Downloaded audio size:', arrayBuffer.byteLength, 'bytes');
+                console.log('[Audio] Download time:', (downloadTime / 1000).toFixed(2), 'seconds');
 
                 const buffer = await audioContext.decodeAudioData(arrayBuffer);
+                const totalTime = performance.now() - startTime;
+
                 console.log('[Audio] Decoded audio duration:', buffer.duration.toFixed(2), 'seconds');
                 console.log('[Audio] Sample rate:', buffer.sampleRate, 'Hz');
                 console.log('[Audio] Channels:', buffer.numberOfChannels);
+                console.log('[Audio] Total load time:', (totalTime / 1000).toFixed(2), 'seconds');
 
                 return buffer;
             } catch (error) {
@@ -461,19 +476,62 @@
             }
         }
 
+        async function preloadNextSegment() {
+            if (!autoPlayEnabled || isPreloading || segmentsList.length === 0) {
+                return;
+            }
+
+            const nextIndex = (currentSegmentIndex + 1) % segmentsList.length;
+            const nextFilename = segmentsList[nextIndex].name;
+
+            // Check if already preloaded
+            if (preloadedBuffers.has(nextFilename)) {
+                console.log('[Preload] Next segment already cached:', nextFilename);
+                return;
+            }
+
+            isPreloading = true;
+            console.log('[Preload] Starting background download:', nextFilename);
+
+            initAudioContext();
+            const url = `/api/download/${nextFilename}`;
+            const buffer = await loadAudioBuffer(url);
+
+            if (buffer) {
+                preloadedBuffers.set(nextFilename, buffer);
+                console.log('[Preload] Successfully cached:', nextFilename);
+                console.log('[Preload] Cache size:', preloadedBuffers.size, 'segments');
+            } else {
+                console.error('[Preload] Failed to load:', nextFilename);
+            }
+
+            isPreloading = false;
+        }
+
         async function playSegmentWithFade(filename) {
             console.log('[Playback] Starting playback:', filename);
             initAudioContext();
 
-            const url = `/api/download/${filename}`;
-            const buffer = await loadAudioBuffer(url);
+            let buffer = null;
+
+            // Check if preloaded
+            if (preloadedBuffers.has(filename)) {
+                console.log('[Playback] Using preloaded buffer:', filename);
+                buffer = preloadedBuffers.get(filename);
+                preloadedBuffers.delete(filename); // Remove from cache after use
+                console.log('[Playback] Cache size after removal:', preloadedBuffers.size);
+            } else {
+                console.log('[Playback] Buffer not preloaded, downloading now:', filename);
+                const url = `/api/download/${filename}`;
+                buffer = await loadAudioBuffer(url);
+            }
 
             if (!buffer) {
                 console.error('[Playback] Failed to load audio buffer');
                 return;
             }
 
-            console.log('[Playback] Audio loaded successfully, duration:', buffer.duration.toFixed(2), 'seconds');
+            console.log('[Playback] Audio ready, duration:', buffer.duration.toFixed(2), 'seconds');
 
             currentPlayingSegment = filename;
             document.getElementById('currentlyPlaying').textContent = `再生中: ${filename}`;
@@ -551,6 +609,15 @@
 
             console.log('[Playback] Starting playback now');
             source.start(0);
+
+            // Start preloading next segment in background
+            if (autoPlayEnabled) {
+                console.log('[Playback] Triggering background preload of next segment');
+                // Wait a bit before starting preload to avoid competing for network
+                setTimeout(() => {
+                    preloadNextSegment();
+                }, 1000);
+            }
         }
 
         async function startCrossfade() {
@@ -571,10 +638,21 @@
             console.log('[Crossfade] Transition started, next index:', nextIndex);
 
             const nextFilename = segmentsList[nextIndex].name;
-            console.log('[Crossfade] Loading next segment:', nextFilename);
 
-            const url = `/api/download/${nextFilename}`;
-            const buffer = await loadAudioBuffer(url);
+            let buffer = null;
+
+            // Check if preloaded
+            if (preloadedBuffers.has(nextFilename)) {
+                console.log('[Crossfade] Using preloaded buffer:', nextFilename);
+                buffer = preloadedBuffers.get(nextFilename);
+                preloadedBuffers.delete(nextFilename);
+                console.log('[Crossfade] Cache size after removal:', preloadedBuffers.size);
+            } else {
+                console.log('[Crossfade] Buffer not preloaded, downloading now:', nextFilename);
+                console.warn('[Crossfade] This will cause a delay! Preloading should have happened earlier.');
+                const url = `/api/download/${nextFilename}`;
+                buffer = await loadAudioBuffer(url);
+            }
 
             if (!buffer) {
                 console.error('[Crossfade] Failed to load next segment');
@@ -582,7 +660,7 @@
                 return;
             }
 
-            console.log('[Crossfade] Next segment loaded, duration:', buffer.duration.toFixed(2), 'seconds');
+            console.log('[Crossfade] Next segment ready, duration:', buffer.duration.toFixed(2), 'seconds');
 
             // Create next source
             const nextSource = audioContext.createBufferSource();
@@ -634,6 +712,14 @@
 
                 isTransitioning = false;
                 console.log('[Crossfade] Transition complete, now playing:', nextFilename);
+
+                // Start preloading next segment
+                if (autoPlayEnabled) {
+                    console.log('[Crossfade] Triggering background preload of next segment');
+                    setTimeout(() => {
+                        preloadNextSegment();
+                    }, 1000);
+                }
 
                 // Schedule next crossfade
                 if (crossfadeEnabled && autoPlayEnabled) {
