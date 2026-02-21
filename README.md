@@ -6,21 +6,36 @@
 
 ## 環境構築
 
-### Google Colab A100 でのセットアップ
+### Google Colab でのセットアップ
 
-詳細なインストール手順は [`install.md`](./install.md) を参照のこと。
+A100・T4 など、利用可能な GPU 環境で動作する。詳細なインストール手順は [`install.md`](./install.md) を参照のこと。
 
 **クイックスタート:**
 
 ```bash
-# 1. ディレクトリ移動
+# 1. サブモジュールの初期化（初回のみ）
+git submodule update --init --recursive
+
+# 2. ディレクトリ移動
 cd /content/oto-factory/ACE-Step-1.5
 
-# 2. 依存関係インストール（初回のみ）
+# 3. 依存関係インストール（初回のみ、5-10分）
 uv sync
 
-# 3. Gradio UI 起動
+# 4. Gradio UI 起動
 uv run acestep --language ja --server-name 0.0.0.0
+```
+
+**A100 向け最適化起動（推奨）:**
+
+```bash
+uv run acestep \
+  --language ja \
+  --server-name 0.0.0.0 \
+  --lm_model_path acestep-5Hz-lm-4B \
+  --config_path acestep-v15-turbo \
+  --init_service true \
+  --backend vllm
 ```
 
 詳細は以下を参照：
@@ -75,22 +90,25 @@ ssh colab
 
 ```
 oto-factory/
-├── ACE-Step-1.5/           # ACE-Step 1.5 サブモジュール
-├── README.md               # 本ファイル
-├── CLAUDE.md               # Claude Code 向けガイド
-├── AGENTS.md               # エージェント向けガイドライン
-├── install.md              # Google Colab A100 インストールガイド
-├── claude_plan.md          # 環境構築プラン
-├── design_codex.md         # プロトタイプ設計書
-├── ssh-forwarding-guide.md # SSH ポートフォワーディング全ガイド
-└── mac-connection-guide.md # MacBook Air 接続ガイド
+├── ACE-Step-1.5/               # ACE-Step 1.5 サブモジュール
+├── README.md                   # 本ファイル
+├── CLAUDE.md                   # Claude Code 向けガイド
+├── AGENTS.md                   # エージェント向けガイドライン
+├── install.md                  # Google Colab インストールガイド
+├── claude_plan.md              # 環境構築プラン（Claude）
+├── codex_plan.md               # 環境構築プラン（Codex）
+├── design_codex.md             # プロトタイプ設計書
+├── ssh-forwarding-guide.md     # SSH ポートフォワーディング全ガイド
+├── mac-connection-guide.md     # MacBook Air 接続ガイド
+└── mac-ssh-config-example.txt  # SSH 設定サンプル
 ```
 
 ## ドキュメント
 
 ### 環境構築
-- **[install.md](./install.md)**: Google Colab A100 での詳細なインストール手順
-- **[claude_plan.md](./claude_plan.md)**: 環境構築方法の比較と推奨プラン
+- **[install.md](./install.md)**: Google Colab での詳細なインストール手順（A100/T4 対応）
+- **[claude_plan.md](./claude_plan.md)**: 環境構築方法の比較と推奨プラン（Claude）
+- **[codex_plan.md](./codex_plan.md)**: 環境構築プラン（Codex）
 - **[mac-connection-guide.md](./mac-connection-guide.md)**: MacBook Air からの接続手順
 - **[ssh-forwarding-guide.md](./ssh-forwarding-guide.md)**: すべてのアクセス方法の比較
 
