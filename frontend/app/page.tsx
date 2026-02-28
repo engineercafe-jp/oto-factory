@@ -58,11 +58,10 @@ export default function HomePage() {
     }
 
     requestedAudioJobIdRef.current = jobId;
-    let active = true;
     const currentJobId = jobId;
 
     void audio.loadAudio(currentJobId).then((result) => {
-      if (!active) {
+      if (requestedAudioJobIdRef.current !== currentJobId) {
         return;
       }
 
@@ -74,9 +73,7 @@ export default function HomePage() {
       markAudioReady();
     });
 
-    return () => {
-      active = false;
-    };
+    return undefined;
   }, [audio, jobId, markAudioFailure, markAudioReady, uiStatus]);
 
   return (
