@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { AudioPlayer } from "@/components/audio-player";
 import { GenerationForm } from "@/components/generation-form";
@@ -16,6 +16,8 @@ export default function HomePage() {
   const audio = useAudioPlayback();
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [healthMessage, setHealthMessage] = useState<string | null>(null);
+  const requestedAudioJobIdRef = useRef<string | null>(null);
+  const { jobId, uiStatus, markAudioFailure, markAudioReady } = job;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -44,29 +46,38 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (job.uiStatus !== "downloading" || !job.jobId) {
+    if (uiStatus !== "downloading" || !jobId) {
+      if (uiStatus === "idle" || uiStatus === "failed" || uiStatus === "completed") {
+        requestedAudioJobIdRef.current = null;
+      }
       return;
     }
 
-    let active = true;
+    if (requestedAudioJobIdRef.current === jobId) {
+      return;
+    }
 
-    void audio.loadAudio(job.jobId).then((result) => {
+    requestedAudioJobIdRef.current = jobId;
+    let active = true;
+    const currentJobId = jobId;
+
+    void audio.loadAudio(currentJobId).then((result) => {
       if (!active) {
         return;
       }
 
       if (!result.ok) {
-        job.markAudioFailure(result.error);
+        markAudioFailure(result.error);
         return;
       }
 
-      job.markAudioReady();
+      markAudioReady();
     });
 
     return () => {
       active = false;
     };
-  }, [audio, job]);
+  }, [audio, jobId, markAudioFailure, markAudioReady, uiStatus]);
 
   return (
     <ScreenShell

@@ -8,7 +8,10 @@
 
 - ✅ Cloudflare Tunnel が設定済み
 - ✅ SSH 接続が確立済み（`~/.ssh/config` に `colab` ホストが設定済み）
-- ✅ Colab で Gradio が実行中（port 7860）
+- ✅ Colab でサービスが実行中
+  - Gradio UI: port 7860
+  - oto-factory バックエンド API: port 8000
+  - oto-factory フロントエンド: port 3000
 
 ---
 
@@ -260,9 +263,37 @@ ssh -L 7860:localhost:7860 colab
 
 ---
 
-## 複数ポートを転送する場合
+## oto-factory バックエンド・フロントエンドに接続する場合
 
-他のサービスも同時に転送したい場合：
+oto-factory のバックエンド（port 8000）やフロントエンド（port 3000）にも同時に転送できる。
+
+```bash
+# バックエンド API + フロントエンド
+ssh -L 8000:localhost:8000 -L 3000:localhost:3000 colab
+
+# Gradio UI + バックエンド API + フロントエンド（全サービス）
+ssh -L 7860:localhost:7860 -L 8000:localhost:8000 -L 3000:localhost:3000 colab
+```
+
+SSH 設定に永続的に追加する場合：
+
+```
+Host colab
+  ...
+  LocalForward 7860 localhost:7860   # ACE-Step Gradio UI
+  LocalForward 8000 localhost:8000   # oto-factory バックエンド API
+  LocalForward 3000 localhost:3000   # oto-factory フロントエンド
+```
+
+接続後のアクセス先：
+
+| サービス | URL |
+|---------|-----|
+| oto-factory フロントエンド | `http://localhost:3000` |
+| oto-factory API | `http://localhost:8000/docs` |
+| ACE-Step Gradio UI | `http://localhost:7860` |
+
+## その他の複数ポートを転送する場合
 
 ```bash
 ssh -L 7860:localhost:7860 -L 8000:localhost:8000 colab

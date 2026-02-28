@@ -530,6 +530,12 @@ nvidia-smi
 5. **LoRA トレーニング**
    - 独自のスタイルを学習
 
+6. **oto-factory バックエンド・フロントエンドの利用**
+   - oto-factory ルートにも `pyproject.toml` があり、`uv sync` で ACE-Step を含む全依存を一括解決できる
+   - バックエンド: `cd /content/oto-factory && uv sync && uv run oto-backend`
+   - フロントエンド: `cd /content/oto-factory/frontend && npm install && npm run dev`
+   - 詳細は [`README_DESIGN.md`](./README_DESIGN.md) と [`README_FRONTEND.md`](./README_FRONTEND.md) を参照のこと
+
 ---
 
 ---

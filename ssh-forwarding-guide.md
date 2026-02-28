@@ -1,6 +1,14 @@
-# MacBook Air から Google Colab の Gradio アプリに接続する方法
+# MacBook Air から Google Colab のサービスに接続する方法
 
-Google Colab 環境で動作している Gradio アプリに、ローカルの MacBook Air から接続する方法を説明する。
+Google Colab 環境で動作している各サービスに、ローカルの MacBook Air から接続する方法を説明する。
+
+## 対象サービスとポート
+
+| サービス | ポート | 説明 |
+|---------|--------|------|
+| oto-factory フロントエンド | 3000 | Next.js UI（音楽生成の操作画面） |
+| oto-factory バックエンド API | 8000 | FastAPI（`/api/*` エンドポイント、Swagger UI） |
+| ACE-Step Gradio UI | 7860 | ACE-Step 直接操作用 UI |
 
 ---
 
