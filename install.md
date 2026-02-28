@@ -1,8 +1,8 @@
-# ACE-Step 1.5 Google Colab A100 インストールガイド
+# ACE-Step 1.5 / oto-factory Google Colab インストールガイド
 
 ## 環境情報
 
-本ガイドは Google Colab の A100 GPU 環境で ACE-Step 1.5 をセットアップする手順である。
+本ガイドは Google Colab の A100 GPU 環境で ACE-Step 1.5 と oto-factory backend / frontend をセットアップする手順である。
 
 ### ハードウェア・ソフトウェア構成
 
@@ -265,6 +265,70 @@ uv run acestep \
 | `--config_path acestep-v15-turbo` | 高速な Turbo DiT モデル |
 | `--init_service true` | 起動時にモデルを事前ロード |
 | `--backend vllm` | vLLM バックエンドで高速推論 |
+
+---
+
+## Step 5: oto-factory バックエンド起動
+
+ACE-Step 単体ではなく oto-factory を使う場合は、リポジトリルートへ戻って backend を起動する。
+
+```bash
+cd /content/oto-factory
+uv sync
+uv run oto-backend
+```
+
+確認:
+
+```bash
+curl http://127.0.0.1:8000/api/health
+```
+
+---
+
+## Step 6: oto-factory フロントエンド起動
+
+```bash
+cd /content/oto-factory/frontend
+npm install
+cp .env.example .env.local
+```
+
+`.env.local`:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+```
+
+起動:
+
+```bash
+npm run dev -- --hostname 0.0.0.0 --port 3000
+```
+
+確認:
+
+```bash
+curl http://127.0.0.1:3000 | head -20
+```
+
+---
+
+## Step 7: ブラウザ利用
+
+ローカルから Colab に接続する場合は、別端末で以下を実行する。
+
+```bash
+ssh -L 3000:localhost:3000 -L 8000:localhost:8000 colab
+```
+
+アクセス先:
+
+- フロントエンド: `http://localhost:3000`
+- バックエンド API: `http://localhost:8000`
+- Swagger UI: `http://localhost:8000/docs`
+
+詳細は [`mac-connection-guide.md`](./mac-connection-guide.md) と [`ssh-forwarding-guide.md`](./ssh-forwarding-guide.md) を参照のこと。
 
 ### 初回起動時の注意
 

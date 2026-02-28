@@ -1,4 +1,4 @@
-# MacBook Air から Gradio UI に接続する手順
+# MacBook Air から oto-factory / Gradio UI に接続する手順
 
 既存の SSH 接続（Cloudflare Tunnel 経由）を使って、SSH ポートフォワーディングで Gradio UI にアクセスする。
 
@@ -17,7 +17,32 @@
 
 ## 接続手順
 
-### 方法 1: コマンドラインで接続（すぐに試せる）
+### 方法 1: oto-factory フロントエンドと backend に接続（推奨）
+
+#### Step 1: SSH ポートフォワーディングで接続
+
+MacBook Air のターミナルで実行：
+
+```bash
+ssh -L 3000:localhost:3000 -L 8000:localhost:8000 colab
+```
+
+#### Step 2: ブラウザでアクセス
+
+- フロントエンド: `http://localhost:3000`
+- backend API: `http://localhost:8000`
+- Swagger UI: `http://localhost:8000/docs`
+
+#### Step 3: 動作確認
+
+1. フロントエンドを開く
+2. `server` が `online` であることを確認する
+3. プロンプトを入力して `生成を開始する` を押す
+4. 完了後、再生カードで音を確認する
+
+---
+
+### 方法 2: Gradio UI に接続（従来手順）
 
 #### Step 1: SSH ポートフォワーディングで接続
 
@@ -75,7 +100,7 @@ A100 GPU で数秒で生成される。
 
 ---
 
-### 方法 2: SSH 設定に永続的に追加（推奨）
+### 方法 3: SSH 設定に永続的に追加（推奨）
 
 #### Step 1: SSH 設定ファイルを編集
 
@@ -104,6 +129,8 @@ Host colab
   UserKnownHostsFile /dev/null
   ServerAliveInterval 60
   ServerAliveCountMax 3
+  LocalForward 3000 localhost:3000
+  LocalForward 8000 localhost:8000
   LocalForward 7860 localhost:7860
 ```
 
@@ -120,16 +147,20 @@ Host colab
 ssh colab
 ```
 
-ブラウザで `http://localhost:7860` を開くだけ。
+ブラウザで以下を開くだけでよい。
+
+- `http://localhost:3000`
+- `http://localhost:8000`
+- `http://localhost:7860`
 
 ---
 
-### 方法 3: バックグラウンドで実行（SSH セッションを開いたままにしたくない場合）
+### 方法 4: バックグラウンドで実行（SSH セッションを開いたままにしたくない場合）
 
 SSH セッションをバックグラウンドで維持し、ターミナルを占有しない方法：
 
 ```bash
-ssh -f -N -L 7860:localhost:7860 colab
+ssh -f -N -L 3000:localhost:3000 -L 8000:localhost:8000 colab
 ```
 
 **オプション説明:**
@@ -161,13 +192,16 @@ pkill -f "ssh.*colab"
 
 ```bash
 # ポートフォワーディングが有効か確認
-netstat -an | grep 7860
+netstat -an | grep 3000
+netstat -an | grep 8000
 
 # または
-lsof -i :7860
+lsof -i :3000
+lsof -i :8000
 
-# Gradio にアクセスできるか確認
-curl http://localhost:7860 | head -20
+# フロントエンド / backend にアクセスできるか確認
+curl http://localhost:3000 | head -20
+curl http://localhost:8000/api/health
 ```
 
 **期待される出力:**
@@ -185,7 +219,7 @@ curl http://localhost:7860 | head -20
 
 ### 1. "Connection refused" エラー
 
-**原因:** Colab で Gradio が起動していない
+**原因:** Colab で frontend / backend / Gradio のいずれかが起動していない
 
 **解決策:**
 
@@ -195,10 +229,22 @@ Colab 側で確認：
 # SSH で Colab に接続
 ssh colab
 
+# backend のプロセスを確認
+ps aux | grep oto-backend | grep -v grep
+
+# frontend のプロセスを確認
+ps aux | grep "next dev" | grep -v grep
+
 # Gradio のプロセスを確認
 ps aux | grep acestep | grep -v grep
 
 # 起動していない場合、起動
+cd /content/oto-factory
+uv run oto-backend
+
+cd /content/oto-factory/frontend
+npm run dev -- --hostname 0.0.0.0 --port 3000
+
 cd /content/oto-factory/ACE-Step-1.5
 uv run acestep --language ja --server-name 0.0.0.0
 ```

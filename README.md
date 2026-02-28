@@ -6,6 +6,14 @@
 
 テキストプロンプトを入力するだけで MP3 楽曲を生成し、ブラウザ上で再生・ダウンロードできる。
 
+現在の UI は `frontend/` の Next.js App Router 実装であり、1 画面で以下を行う。
+
+- プロンプト送信
+- ジョブ進捗のポーリング表示
+- 完了後の MP3 取得
+- 自動再生の試行と手動再生フォールバック
+- MP3 ダウンロード
+
 ## システム構成
 
 ```
@@ -58,6 +66,10 @@ npm install
 
 # 開発サーバー起動
 npm run dev
+
+# 品質確認
+npm run lint
+npm run build
 ```
 
 起動後、`http://localhost:3000` でフロントエンドにアクセスできる。
@@ -68,6 +80,24 @@ npm run dev
 cp .env.example .env.local
 # NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
+
+### フロントエンドの使い方
+
+1. `http://localhost:3000` を開く
+2. ヘルス表示で backend が `online` になっていることを確認する
+3. プロンプトを入力し、長さを選択する
+4. 必要なら「詳細設定」で `BPM` と `Seed` を指定する
+5. `生成を開始する` を押す
+6. 進捗カードで `queued` / `running` / `downloading` / `completed` を確認する
+7. 完了後、再生カードで音声を確認し、必要ならダウンロードする
+
+### フロントエンドの現在の挙動
+
+- `GET /api/health` は初回表示時に実行し、アイドル時は 30 秒間隔で再取得する
+- ジョブ状態は表示中 2 秒、非表示時 5 秒で `GET /api/jobs/{job_id}` をポーリングする
+- `completed` 後の `GET /api/jobs/{job_id}/audio` は同一 `job_id` に対して 1 回だけ実行する
+- 音声取得後は `play()` で自動再生を試み、失敗した場合は手動再生ボタンを出す
+- 1 ジョブ進行中は再送を禁止する
 
 ### ACE-Step Gradio UI（直接使用する場合）
 
@@ -139,6 +169,13 @@ ssh -L 7860:localhost:7860 -L 8000:localhost:8000 -L 3000:localhost:3000 colab
 
 `~/.ssh/config` への永続設定は [`mac-connection-guide.md`](./mac-connection-guide.md) を参照のこと。
 
+トンネル実行後のアクセス先は以下である。
+
+- フロントエンド: `http://localhost:3000`
+- バックエンド API: `http://localhost:8000`
+- Swagger UI: `http://localhost:8000/docs`
+- Gradio UI: `http://localhost:7860`
+
 ## 環境変数
 
 バックエンドは以下の環境変数で設定可能である（プレフィックス `OTO_`）。
@@ -160,7 +197,7 @@ ssh -L 7860:localhost:7860 -L 8000:localhost:8000 -L 3000:localhost:3000 colab
 
 ### アプリケーション
 - **[README_DESIGN.md](./README_DESIGN.md)**: バックエンド設計書（API 仕様、モジュール構成）
-- **[README_FRONTEND.md](./README_FRONTEND.md)**: フロントエンド設計書（コンポーネント設計、状態管理）
+- **[README_FRONTEND.md](./README_FRONTEND.md)**: フロントエンド設計・実装・利用ガイド
 
 ### 環境構築
 - **[install.md](./install.md)**: Google Colab での詳細なインストール手順（A100/T4 対応）

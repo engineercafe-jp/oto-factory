@@ -43,6 +43,9 @@ Use `uv` for environment and runtime management.
 ### フロントエンド
 - `cd frontend && npm install`: 依存関係インストール
 - `npm run dev`: 開発サーバー起動（`localhost:3000`）
+- `npm run lint`: ESLint 実行
+- `npm run build`: production build 検証
+- `.env.local` に `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` を設定する
 
 ### ACE-Step 1.5
 - `cd ACE-Step-1.5 && uv sync`: 依存関係インストール
@@ -68,3 +71,5 @@ Recent history favors Conventional Commit prefixes (`fix:`, `feat:`) and topic b
 
 ## Security & Configuration Tips
 Never commit secrets or local credentials. When adding configuration, update template files such as `.env.example` and `proxy_config.txt.example`, and inject real values through local environment variables.
+
+When changing frontend behavior, update the user-facing markdown docs in the repository root as needed, especially `README.md`, `README_FRONTEND.md`, `install.md`, and SSH access guides.

@@ -10,6 +10,8 @@ Google Colab 環境で動作している各サービスに、ローカルの Mac
 | oto-factory バックエンド API | 8000 | FastAPI（`/api/*` エンドポイント、Swagger UI） |
 | ACE-Step Gradio UI | 7860 | ACE-Step 直接操作用 UI |
 
+oto-factory を使う日常運用では、`3000` と `8000` の転送を標準とする。
+
 ---
 
 ## Option A: Gradio --share オプション（最もシンプル）⭐
@@ -80,7 +82,40 @@ https://xxxxxxxxxxxxx.gradio.live
 
 ---
 
-## Option B: ngrok でポート公開（SSH 不要）
+## Option B: SSH ポートフォワーディング（oto-factory 推奨）
+
+既存の `colab` SSH 設定がある場合、oto-factory ではこれが最も実用的である。
+
+```bash
+ssh -L 3000:localhost:3000 -L 8000:localhost:8000 colab
+```
+
+必要なら Gradio も追加する。
+
+```bash
+ssh -L 3000:localhost:3000 -L 8000:localhost:8000 -L 7860:localhost:7860 colab
+```
+
+アクセス先:
+
+- `http://localhost:3000`
+- `http://localhost:8000`
+- `http://localhost:8000/docs`
+- `http://localhost:7860`
+
+### メリット
+
+- ✅ oto-factory frontend / backend を同時に扱いやすい
+- ✅ ローカル URL のまま確認できる
+- ✅ 追加の外部公開サービスが不要
+
+### デメリット
+
+- ❌ SSH 接続前提
+
+---
+
+## Option C: ngrok でポート公開（SSH 不要）
 
 ngrok を使って固定的なトンネルを作成する方法。
 
@@ -137,7 +172,7 @@ curl -s http://localhost:4040/api/tunnels | python3 -c "import sys, json; print(
 
 ---
 
-## Option C: SSH サーバー + ngrok + SSH ポートフォワーディング（本格的）
+## Option D: SSH サーバー + ngrok + SSH ポートフォワーディング（本格的）
 
 本格的な SSH ポートフォワーディングを使用する方法。
 
@@ -240,22 +275,26 @@ http://localhost:7860
 
 ## 方法の比較
 
-| 項目 | Option A: --share | Option B: ngrok | Option C: SSH + ngrok |
-|------|------------------|-----------------|----------------------|
-| **難易度** | ⭐ 簡単 | ⭐⭐ 中程度 | ⭐⭐⭐ 難しい |
-| **セットアップ時間** | 1分 | 5分 | 10分 |
-| **SSH 必要** | 不要 | 不要 | 必要 |
-| **外部サービス** | なし | ngrok | ngrok |
-| **アクセス URL** | gradio.live | ngrok-free.app | localhost:7860 |
-| **URL の永続性** | 72時間 | セッション中 | セッション中 |
-| **ローカル接続** | ❌ | ❌ | ✅ |
-| **推奨度** | ⭐⭐⭐ | ⭐⭐ | ⭐ |
+| 項目 | Option A: --share | Option B: SSH Forward | Option C: ngrok | Option D: SSH + ngrok |
+|------|------------------|------------------------|------------------|------------------------|
+| **難易度** | ⭐ 簡単 | ⭐ 簡単 | ⭐⭐ 中程度 | ⭐⭐⭐ 難しい |
+| **セットアップ時間** | 1分 | 1分 | 5分 | 10分 |
+| **SSH 必要** | 不要 | 必要 | 不要 | 必要 |
+| **外部サービス** | なし | なし | ngrok | ngrok |
+| **アクセス URL** | gradio.live | localhost | ngrok-free.app | localhost |
+| **URL の永続性** | 72時間 | セッション中 | セッション中 | セッション中 |
+| **ローカル接続** | ❌ | ✅ | ❌ | ✅ |
+| **推奨度** | ⭐⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐ |
 
 ---
 
 ## 推奨される方法
 
-### 初めて使う場合: Option A (--share)
+### oto-factory frontend / backend を使う場合: Option B (SSH Forward)
+
+最も単純で、フロントエンドと backend の両方をそのまま扱える。
+
+### Gradio 単体を手早く見たい場合: Option A (--share)
 
 最もシンプルで、すぐに使える。
 
@@ -265,11 +304,11 @@ pkill -f acestep
 uv run acestep --language ja --server-name 0.0.0.0 --share
 ```
 
-### より柔軟に使いたい場合: Option B (ngrok)
+### より柔軟に使いたい場合: Option C (ngrok)
 
 ngrok の管理画面でトラフィックを確認したい場合。
 
-### SSH 接続を本格的に使いたい場合: Option C (SSH + ngrok)
+### SSH 接続を本格的に使いたい場合: Option D (SSH + ngrok)
 
 SSH 経由で Colab にアクセスし、他のコマンドも実行したい場合。
 

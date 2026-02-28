@@ -72,8 +72,17 @@ npm install
 # 開発サーバー起動
 npm run dev
 
+# Lint
+npm run lint
+
 # ビルド
 npm run build
+```
+
+`.env.local` には以下を設定する。
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
 
 ### ACE-Step 1.5 の起動（Gradio UI）
@@ -164,6 +173,9 @@ GET /api/jobs/{job_id}/audio  → 完了済み MP3 を返す
 - `pyproject.toml` で `ace-step` を path dependency として定義し、`uv sync` で一括解決する
 - ジョブキューは `asyncio.Queue`、音楽生成は `ThreadPoolExecutor(max_workers=1)` で逐次実行（OOM 防止）
 - `get_checkpoints_dir()` でチェックポイントディレクトリを取得する（ACE-Step ルート自体は渡さない）
+- フロントエンドは `status` 主導で画面遷移する。`stage` は表示専用である
+- フロントエンドはアイドル時のみ `GET /api/health` を 30 秒間隔で行う
+- 同一 `job_id` への `GET /api/jobs/{job_id}/audio` は 1 回だけ実行する
 
 ## 実装時の注意事項
 
@@ -215,7 +227,7 @@ uv run acestep-download
 ## リファレンス
 
 - [バックエンド設計書](./README_DESIGN.md)
-- [フロントエンド設計書](./README_FRONTEND.md)
+- [フロントエンド設計・実装ガイド](./README_FRONTEND.md)
 - [ACE-Step 1.5 README](./ACE-Step-1.5/README.md)
 - [日本語インストールガイド](./ACE-Step-1.5/docs/ja/INSTALL.md)
 - [推論ガイド（日本語）](./ACE-Step-1.5/docs/ja/INFERENCE.md)
