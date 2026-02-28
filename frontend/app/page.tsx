@@ -17,18 +17,28 @@ export default function HomePage() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [healthMessage, setHealthMessage] = useState<string | null>(null);
   const requestedAudioJobIdRef = useRef<string | null>(null);
-  const { jobId, uiStatus, markAudioFailure, markAudioReady } = job;
+  const { isBusy, jobId, uiStatus, markAudioFailure, markAudioReady } = job;
 
   useEffect(() => {
-    const controller = new AbortController();
+    let active = true;
+    let currentController: AbortController | null = null;
+    let intervalId: number | null = null;
 
-    void getHealth(controller.signal)
-      .then((response) => {
+    const runHealthCheck = async () => {
+      currentController?.abort();
+      const controller = new AbortController();
+      currentController = controller;
+
+      try {
+        const response = await getHealth(controller.signal);
+        if (!active) {
+          return;
+        }
+
         setHealth(response);
         setHealthMessage(null);
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) {
+      } catch (error: unknown) {
+        if (!active || controller.signal.aborted) {
           return;
         }
 
@@ -38,12 +48,25 @@ export default function HomePage() {
         }
 
         setHealthMessage("ヘルスチェックに失敗した。");
-      });
+      }
+    };
+
+    void runHealthCheck();
+
+    if (!isBusy) {
+      intervalId = window.setInterval(() => {
+        void runHealthCheck();
+      }, 30000);
+    }
 
     return () => {
-      controller.abort();
+      active = false;
+      currentController?.abort();
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+      }
     };
-  }, []);
+  }, [isBusy]);
 
   useEffect(() => {
     if (uiStatus !== "downloading" || !jobId) {
