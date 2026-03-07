@@ -1,5 +1,7 @@
 export type JobStatus = "queued" | "running" | "completed" | "failed";
 
+export type LoopStatus = "inactive" | "active" | "stopping";
+
 export type UiStatus =
   | "idle"
   | "submitting"

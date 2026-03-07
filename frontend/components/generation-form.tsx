@@ -1,23 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { GenerateRequest } from "@/lib/types";
+import type { GenerateRequest, LoopStatus } from "@/lib/types";
 
 const DURATION_PRESETS = [30, 60, 120, 180];
 
 interface GenerationFormProps {
   disabled: boolean;
+  loopStatus: LoopStatus;
   onSubmit: (payload: GenerateRequest) => Promise<void> | void;
+  onLoopStart: (payload: GenerateRequest) => void;
+  onLoopStop: () => void;
+  onFormChange: (payload: GenerateRequest) => void;
   onPrimePlayback: () => void;
 }
 
 export function GenerationForm({
   disabled,
+  loopStatus,
   onSubmit,
+  onLoopStart,
+  onLoopStop,
+  onFormChange,
   onPrimePlayback,
 }: GenerationFormProps) {
   const [prompt, setPrompt] = useState("");
@@ -26,6 +34,19 @@ export function GenerationForm({
   const [bpm, setBpm] = useState("");
   const [seed, setSeed] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  // ループ中はフォームを編集可能に保つ
+  const formDisabled = disabled && loopStatus === "inactive";
+
+  // フォーム値の変更を親に通知
+  useEffect(() => {
+    onFormChange({
+      prompt: prompt.trim(),
+      duration,
+      bpm: bpm === "" ? null : Number(bpm),
+      seed: seed === "" ? null : Number(seed),
+    });
+  }, [prompt, duration, bpm, seed, onFormChange]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -69,13 +90,15 @@ export function GenerationForm({
           placeholder="e.g. Calm lofi beats with rain sounds, warm and cozy, for deep focus"
           rows={5}
           maxLength={512}
-          disabled={disabled}
+          disabled={formDisabled}
           aria-describedby="prompt-help"
           required
           className="field__control field__control--textarea"
         />
         <span className="field__hint" id="prompt-help">
-          生成中は、次のリクエストをお送りいただけません。
+          {loopStatus !== "inactive"
+            ? "フォームの変更は次の生成から反映されます。"
+            : "生成中は、次のリクエストをお送りいただけません。"}
         </span>
       </div>
 
@@ -90,7 +113,7 @@ export function GenerationForm({
                 value={preset}
                 checked={duration === preset}
                 onChange={() => setDuration(preset)}
-                disabled={disabled}
+                disabled={formDisabled}
               />
               <span>{preset}秒</span>
             </label>
@@ -124,7 +147,7 @@ export function GenerationForm({
               value={bpm}
               onChange={(event) => setBpm(event.target.value)}
               placeholder="Auto"
-              disabled={disabled}
+              disabled={formDisabled}
               className="field__control"
             />
           </div>
@@ -140,7 +163,7 @@ export function GenerationForm({
               value={seed}
               onChange={(event) => setSeed(event.target.value)}
               placeholder="Random"
-              disabled={disabled}
+              disabled={formDisabled}
               className="field__control"
             />
           </div>
@@ -153,8 +176,39 @@ export function GenerationForm({
         </p>
       ) : null}
 
-      <button className="submit-button" type="submit" disabled={disabled || prompt.trim() === ""}>
-        {disabled ? "生成中..." : "生成する"}
+      <button
+        className="submit-button"
+        type="submit"
+        disabled={formDisabled || prompt.trim() === "" || loopStatus !== "inactive"}
+      >
+        {disabled && loopStatus === "inactive" ? "生成中..." : "生成する"}
+      </button>
+
+      <button
+        className={`loop-button ${loopStatus === "active" ? "loop-button--active" : ""}`}
+        type="button"
+        disabled={loopStatus === "inactive" && (disabled || prompt.trim() === "")}
+        onClick={() => {
+          if (loopStatus === "inactive") {
+            const trimmedPrompt = prompt.trim();
+            if (!trimmedPrompt) return;
+            onPrimePlayback();
+            onLoopStart({
+              prompt: trimmedPrompt,
+              duration,
+              bpm: bpm === "" ? null : Number(bpm),
+              seed: seed === "" ? null : Number(seed),
+            });
+          } else {
+            onLoopStop();
+          }
+        }}
+      >
+        {loopStatus === "stopping"
+          ? "停止中..."
+          : loopStatus === "active"
+            ? "ループ停止"
+            : "ループ生成"}
       </button>
     </form>
   );

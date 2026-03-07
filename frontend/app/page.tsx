@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AudioPlayer } from "@/components/audio-player";
 import { GenerationForm } from "@/components/generation-form";
@@ -8,16 +8,20 @@ import { JobStatusCard } from "@/components/job-status-card";
 import { ScreenShell } from "@/components/screen-shell";
 import { useAudioPlayback } from "@/hooks/use-audio-playback";
 import { useGenerationJob } from "@/hooks/use-generation-job";
+import { useLoopGeneration } from "@/hooks/use-loop-generation";
 import { ApiError, getHealth } from "@/lib/api";
-import type { HealthResponse } from "@/lib/types";
+import type { GenerateRequest, HealthResponse } from "@/lib/types";
 
 export default function HomePage() {
   const job = useGenerationJob();
   const audio = useAudioPlayback();
+  const loop = useLoopGeneration();
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [healthMessage, setHealthMessage] = useState<string | null>(null);
   const requestedAudioJobIdRef = useRef<string | null>(null);
+  const formPayloadRef = useRef<GenerateRequest | null>(null);
   const { isBusy, jobId, uiStatus, markAudioFailure, markAudioReady } = job;
+  const isLoopActive = loop.loopStatus !== "inactive";
 
   useEffect(() => {
     let active = true;
@@ -69,6 +73,9 @@ export default function HomePage() {
   }, [isBusy]);
 
   useEffect(() => {
+    // ループ中は独自にダウンロード・再生を管理する
+    if (isLoopActive) return;
+
     if (uiStatus !== "downloading" || !jobId) {
       if (uiStatus === "idle" || uiStatus === "failed" || uiStatus === "completed") {
         requestedAudioJobIdRef.current = null;
@@ -97,7 +104,18 @@ export default function HomePage() {
     });
 
     return undefined;
-  }, [audio, jobId, markAudioFailure, markAudioReady, uiStatus]);
+  }, [audio, isLoopActive, jobId, markAudioFailure, markAudioReady, uiStatus]);
+
+  const handleFormChange = useCallback((payload: GenerateRequest) => {
+    formPayloadRef.current = payload;
+  }, []);
+
+  const handleLoopStart = useCallback(
+    (payload: GenerateRequest) => {
+      void loop.startLoop(payload, audio, () => formPayloadRef.current ?? payload);
+    },
+    [loop, audio],
+  );
 
   return (
     <ScreenShell
@@ -132,8 +150,12 @@ export default function HomePage() {
       <div className="layout-grid">
         <GenerationForm
           disabled={job.isBusy}
+          loopStatus={loop.loopStatus}
           onPrimePlayback={audio.primeForPlayback}
           onSubmit={job.submit}
+          onLoopStart={handleLoopStart}
+          onLoopStop={loop.stopLoop}
+          onFormChange={handleFormChange}
         />
 
         <div className="stack">
@@ -150,6 +172,10 @@ export default function HomePage() {
             loading={audio.loading}
             playManually={audio.playManually}
             jobId={job.jobId}
+            onEnded={isLoopActive ? loop.onTrackEnded : undefined}
+            loopStatus={loop.loopStatus}
+            nextTrackReady={loop.nextTrackReady}
+            waitingForNext={loop.waitingForNext}
           />
         </div>
       </div>

@@ -117,6 +117,51 @@ export function useAudioPlayback() {
     }
   };
 
+  /** Blob を直接読み込んで再生する（ループフック用） */
+  const loadFromBlob = async (blob: Blob): Promise<{ ok: true } | { ok: false; error: string }> => {
+    try {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+      }
+
+      const url = URL.createObjectURL(blob);
+      objectUrlRef.current = url;
+      const element = audioRef.current;
+
+      if (element) {
+        element.src = url;
+        element.load();
+      }
+
+      setState({
+        audioUrl: url,
+        autoplayBlocked: false,
+        loading: false,
+        error: null,
+      });
+
+      if (element) {
+        try {
+          await element.play();
+        } catch {
+          setState((current) => ({
+            ...current,
+            autoplayBlocked: true,
+          }));
+        }
+      }
+
+      return { ok: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "音声の読み込みに失敗した";
+      setState({
+        ...INITIAL_AUDIO_STATE,
+        error: message,
+      });
+      return { ok: false, error: message };
+    }
+  };
+
   const playManually = async () => {
     const element = audioRef.current;
     if (!element) {
@@ -143,6 +188,7 @@ export function useAudioPlayback() {
     attachAudioRef,
     primeForPlayback,
     loadAudio,
+    loadFromBlob,
     playManually,
   };
 }

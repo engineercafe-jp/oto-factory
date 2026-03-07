@@ -434,6 +434,42 @@ a {
   transform: none;
 }
 
+/* ループ生成ボタン */
+.loop-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 24px;
+  border-radius: 999px;
+  border: 2px solid var(--primary);
+  background: transparent;
+  color: var(--primary);
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+  font: inherit;
+}
+
+.loop-button:hover:not(:disabled) {
+  background: rgba(22, 122, 109, 0.08);
+  transform: translateY(-1px);
+}
+
+.loop-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.loop-button--active {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.loop-button--active:hover:not(:disabled) {
+  background: rgba(159, 61, 44, 0.08);
+}
+
 /* ============================================================
    エラー表示
    ============================================================ */
