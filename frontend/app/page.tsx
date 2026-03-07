@@ -43,11 +43,11 @@ export default function HomePage() {
         }
 
         if (error instanceof ApiError) {
-          setHealthMessage("バックエンドに接続できない。起動状態を確認してほしい。");
+          setHealthMessage("サーバーに接続できませんでした。バックエンドが起動しているかご確認ください。");
           return;
         }
 
-        setHealthMessage("ヘルスチェックに失敗した。");
+        setHealthMessage("サーバーの状態を確認できませんでした。");
       }
     };
 
@@ -104,10 +104,10 @@ export default function HomePage() {
       hero={
         <div className="hero-block">
           <p className="eyebrow">oto-factory</p>
-          <h1>作業音を、その場で生成する。</h1>
+          <h1>作業用BGMを、今すぐ。</h1>
           <p className="hero-copy">
-            プロンプトを送るとバックエンドで非同期ジョブが始まり、進捗を監視しながら
-            MP3 の再生までつなぐ。
+            テキストで雰囲気を伝えるだけで、AIが音楽を生成します。
+            完成したらすぐに再生・ダウンロードできます。
           </p>
 
           <div className="hero-status">

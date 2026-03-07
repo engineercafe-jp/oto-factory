@@ -14,11 +14,11 @@ export function JobStatusCard({ uiStatus, job, message, error }: JobStatusCardPr
   const completedAt = formatTimestamp(job?.completed_at ?? null);
 
   return (
-    <section className="card stack reveal-card" aria-live="polite">
-      <div className="card__header">
+    <section className="card-oto reveal-card" aria-live="polite">
+      <div className="card-header-row">
         <div>
           <p className="eyebrow">Status</p>
-          <h2>ジョブ進捗</h2>
+          <h2>生成ステータス</h2>
         </div>
         <span className={`status-badge status-badge--${uiStatus}`}>{mapStatusLabel(uiStatus)}</span>
       </div>
@@ -26,11 +26,11 @@ export function JobStatusCard({ uiStatus, job, message, error }: JobStatusCardPr
       <div className="status-meta">
         <div>
           <span className="status-meta__label">job id</span>
-          <strong>{job?.job_id ?? "未発行"}</strong>
+          <strong>{job?.job_id ?? "—"}</strong>
         </div>
         <div>
           <span className="status-meta__label">stage</span>
-          <strong>{job?.stage ?? message ?? "送信待ち"}</strong>
+          <strong>{job?.stage ?? message ?? "リクエストをお待ちしています"}</strong>
         </div>
       </div>
 
@@ -42,8 +42,8 @@ export function JobStatusCard({ uiStatus, job, message, error }: JobStatusCardPr
       </div>
 
       <div className="timestamp-row">
-        <span>受付: {createdAt ?? "-"}</span>
-        <span>完了: {completedAt ?? "-"}</span>
+        <span>受付 {createdAt ?? "-"}</span>
+        <span>完了 {completedAt ?? "-"}</span>
       </div>
 
       {error ? (
@@ -51,7 +51,7 @@ export function JobStatusCard({ uiStatus, job, message, error }: JobStatusCardPr
           <strong>{error.summary}</strong>
           {error.detail ? (
             <details>
-              <summary>詳細を見る</summary>
+              <summary>詳細を表示</summary>
               <p>{error.detail}</p>
             </details>
           ) : null}

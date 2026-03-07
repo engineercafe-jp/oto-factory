@@ -25,26 +25,26 @@ function mapApiError(error: unknown): UiError {
   if (error instanceof ApiError) {
     if (error.status === 503) {
       return {
-        summary: "現在キューが混雑している。少し待ってから再試行してほしい。",
+        summary: "ただいまサーバーが混み合っています。しばらく経ってから再度お試しください。",
         detail: error.detail,
       };
     }
 
     if (error.status === 404) {
       return {
-        summary: "ジョブが見つからない。期限切れか無効な ID の可能性がある。",
+        summary: "ジョブが見つかりませんでした。有効期限切れの可能性があります。",
         detail: error.detail,
       };
     }
 
     return {
-      summary: "サーバーとの通信に失敗した。バックエンドの起動状態を確認してほしい。",
+      summary: "サーバーとの通信に失敗しました。バックエンドが起動しているかご確認ください。",
       detail: error.detail,
     };
   }
 
   return {
-    summary: "不明なエラーが発生した。時間をおいて再試行してほしい。",
+    summary: "予期しないエラーが発生しました。しばらく経ってから再度お試しください。",
   };
 }
 
@@ -92,7 +92,7 @@ export function useGenerationJob() {
           error:
             job.status === "failed"
               ? {
-                  summary: "生成に失敗した。内容を確認して再送してほしい。",
+                  summary: "生成中にエラーが発生しました。内容をご確認のうえ、再度お試しください。",
                   detail: job.error,
                 }
               : current.error,
@@ -153,7 +153,7 @@ export function useGenerationJob() {
           job_id: response.job_id,
           status: response.status,
           progress: 0,
-          stage: "ジョブをキューに投入した",
+          stage: "リクエストを受け付けました",
           created_at: new Date().toISOString(),
           completed_at: null,
           error: null,
@@ -184,7 +184,7 @@ export function useGenerationJob() {
       ...current,
       uiStatus: "failed",
       error: {
-        summary: "音声の取得に失敗した。時間をおいて再試行してほしい。",
+        summary: "音声の取得に失敗しました。しばらく経ってから再度お試しください。",
         detail,
       },
     }));

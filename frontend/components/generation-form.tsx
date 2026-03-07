@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import type { GenerateRequest } from "@/lib/types";
 
 const DURATION_PRESETS = [30, 60, 120, 180];
@@ -29,7 +32,7 @@ export function GenerationForm({
     const trimmedPrompt = prompt.trim();
 
     if (!trimmedPrompt) {
-      setValidationError("プロンプトを入力してほしい。");
+      setValidationError("プロンプトをご入力ください。");
       return;
     }
 
@@ -45,33 +48,36 @@ export function GenerationForm({
   };
 
   return (
-    <form className="card stack" onSubmit={handleSubmit}>
-      <div className="card__header">
-        <div>
-          <p className="eyebrow">Generate</p>
-          <h2>音の指示を送る</h2>
-        </div>
-        <p className="card__lead">短い説明でも構わない。作りたい空気感をそのまま書く。</p>
+    <form className="card-oto" onSubmit={handleSubmit}>
+      <div>
+        <p className="eyebrow">Generate</p>
+        <h2>音楽を生成する</h2>
+        <p className="card-lead" style={{ textAlign: "left", maxWidth: "none", marginTop: "6px" }}>
+          思い描くサウンドの雰囲気を、自由な言葉でお伝えください。
+        </p>
       </div>
 
-      <label className="field">
-        <span className="field__label">プロンプト</span>
-        <textarea
-          className="field__control field__control--textarea"
+      <div className="field">
+        <Label htmlFor="prompt" className="field__label">
+          プロンプト
+        </Label>
+        <Textarea
+          id="prompt"
           name="prompt"
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
-          placeholder="例: 雨音の奥で静かに鳴るローファイ、集中用、暖かい質感"
+          placeholder="e.g. Calm lofi beats with rain sounds, warm and cozy, for deep focus"
           rows={5}
           maxLength={512}
           disabled={disabled}
           aria-describedby="prompt-help"
           required
+          className="field__control field__control--textarea"
         />
         <span className="field__hint" id="prompt-help">
-          1 つのジョブが終わるまでは次を送れない。
+          生成中は、次のリクエストをお送りいただけません。
         </span>
-      </label>
+      </div>
 
       <fieldset className="field-group">
         <legend className="field__label">長さ</legend>
@@ -99,39 +105,45 @@ export function GenerationForm({
           onClick={() => setShowAdvanced((current) => !current)}
           aria-expanded={showAdvanced}
         >
-          詳細設定 {showAdvanced ? "を閉じる" : "を開く"}
+          詳細設定を{showAdvanced ? "隠す" : "表示"}
         </button>
       </div>
 
       {showAdvanced ? (
         <div className="advanced-grid">
-          <label className="field">
-            <span className="field__label">BPM</span>
-            <input
-              className="field__control"
+          <div className="field">
+            <Label htmlFor="bpm" className="field__label">
+              BPM
+            </Label>
+            <Input
+              id="bpm"
               type="number"
               inputMode="numeric"
               min={30}
               max={300}
               value={bpm}
               onChange={(event) => setBpm(event.target.value)}
-              placeholder="自動"
+              placeholder="Auto"
               disabled={disabled}
-            />
-          </label>
-
-          <label className="field">
-            <span className="field__label">Seed</span>
-            <input
               className="field__control"
+            />
+          </div>
+
+          <div className="field">
+            <Label htmlFor="seed" className="field__label">
+              Seed
+            </Label>
+            <Input
+              id="seed"
               type="number"
               inputMode="numeric"
               value={seed}
               onChange={(event) => setSeed(event.target.value)}
-              placeholder="ランダム"
+              placeholder="Random"
               disabled={disabled}
+              className="field__control"
             />
-          </label>
+          </div>
         </div>
       ) : null}
 
@@ -141,8 +153,8 @@ export function GenerationForm({
         </p>
       ) : null}
 
-      <button className="submit-button" type="submit" disabled={disabled}>
-        {disabled ? "処理中..." : "生成を開始する"}
+      <button className="submit-button" type="submit" disabled={disabled || prompt.trim() === ""}>
+        {disabled ? "生成中..." : "生成する"}
       </button>
     </form>
   );

@@ -15,15 +15,15 @@ export function mapStatusLabel(status: UiStatus | JobStatus): string {
     case "submitting":
       return "送信中";
     case "queued":
-      return "キュー待ち";
+      return "処理待ち";
     case "running":
       return "生成中";
     case "downloading":
-      return "音声取得中";
+      return "音声準備中";
     case "completed":
       return "完了";
     case "failed":
-      return "失敗";
+      return "エラー";
     default:
       return status;
   }
