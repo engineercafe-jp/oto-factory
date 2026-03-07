@@ -193,6 +193,41 @@ ssh -L 7860:localhost:7860 -L 8000:localhost:8000 -L 3000:localhost:3000 colab
 | `OTO_JOB_TTL` | `3600` | ジョブの有効期限（秒）|
 | `OTO_QUEUE_MAX` | `100` | キューの最大サイズ |
 
+## 利用可能モデルと設定方法
+
+### DiT モデル（`OTO_DIT_CONFIG`）
+
+このサービスのデフォルトは `acestep-v15-turbo`。
+
+- `acestep-v15-turbo`（デフォルト）
+
+### LM モデル（`OTO_LM_MODEL`）
+
+`OTO_LM_MODEL` は空文字のとき GPU に応じて自動選択される。
+ACE-Step 1.5 で選択可能な代表的な LM モデルは以下。
+
+- `acestep-5Hz-lm-0.6B`
+- `acestep-5Hz-lm-1.7B`
+- `acestep-5Hz-lm-4B`
+
+> 注: このリポジトリの初期チェックポイントには `acestep-5Hz-lm-1.7B` が含まれている。  
+> 他サイズ（`0.6B` / `4B`）を使う場合は、ACE-Step 側のチェックポイント取得手順に従って追加すること。
+
+### 設定例
+
+環境変数を前置して起動すれば、CLI からそのままモデルを切り替えられる。
+
+```bash
+# 例1: LMを明示指定（1.7B）
+OTO_LM_MODEL=acestep-5Hz-lm-1.7B uv run oto-backend
+
+# 例2: DiTを明示指定（turbo）
+OTO_DIT_CONFIG=acestep-v15-turbo uv run oto-backend
+
+# 例3: LMを自動選択に戻す
+OTO_LM_MODEL="" uv run oto-backend
+```
+
 ## ドキュメント
 
 ### アプリケーション
